@@ -28,9 +28,9 @@ export const onGet: RequestHandler = async ({ json, params, env }) => {
   );
 
   manifest.catalogs = [
-    ...(receivers.simkl?.userSettings.catalogs ?? []),
-    ...(receivers.anilist?.userSettings.catalogs ?? []),
     ...(receivers.kitsu?.userSettings.catalogs ?? []),
+    ...(receivers.anilist?.userSettings.catalogs ?? []),
+    ...(receivers.simkl?.userSettings.catalogs ?? []),
     ...(receivers.tvtime?.userSettings.catalogs ?? []),
   ];
 

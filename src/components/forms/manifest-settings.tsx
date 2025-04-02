@@ -1,7 +1,7 @@
 import { $, component$, useSignal } from '@builder.io/qwik';
 import type { PropFunction } from '@builder.io/qwik';
 
-import { useForm } from '@modular-forms/qwik';
+import { move, useForm } from '@modular-forms/qwik';
 import type { SubmitHandler } from '@modular-forms/qwik';
 
 import type { KnownNoSerialize } from '~/utils/helpers/qwik-types';
@@ -50,29 +50,37 @@ export default component$<ManifestSettingsProps>(
       })),
     });
 
-    const [, { Form, Field, FieldArray }] = useForm<FormSettings>({
+    const [formStore, { Form, Field, FieldArray }] = useForm<FormSettings>({
       loader: formDefault,
       fieldArrays: ['catalogs', 'liveSync'],
     });
 
+    const moveCatalogUp = $((index: number) => {
+      if (index > 0) {
+        move(formStore, 'catalogs', { from: index, to: index - 1 });
+      }
+    });
+
+    const moveCatalogDown = $((index: number) => {
+      if (index < formDefault.value.catalogs.length - 1) {
+        move(formStore, 'catalogs', { from: index, to: index + 1 });
+      }
+    });
+
     const handleSubmit = $<SubmitHandler<FormSettings>>((values) => {
-      const catalogValues =
-        JSON.stringify(
-          values.catalogs
-            .filter((catalog) => catalog.value)
-            .map((catalog) => catalog.id)
-            .sort((a, b) => a.localeCompare(b)),
-        ) !==
-        JSON.stringify(
-          [...currentReceiver.defaultCatalogs].sort((a, b) =>
-            a.localeCompare(b),
-          ),
-        )
-          ? currentReceiver.getManifestCatalogItems(
-              values.catalogs
-                .filter((catalog) => catalog.value)
-                .map((catalog) => catalog.id),
-            )
+      // Extract the selected catalogs in their current order
+      const selectedCatalogs = values.catalogs
+        .filter(catalog => catalog.value)
+        .map(catalog => currentReceiver.manifestCatalogItems.find(
+          item => item.id === catalog.id
+        ))
+        .filter(Boolean) as (typeof currentReceiver.manifestCatalogItems)[number][];
+      
+      // Determine if the selected catalogs have changed from the defaults
+      const catalogValues = 
+        JSON.stringify(selectedCatalogs.map(c => c.id)) !== 
+        JSON.stringify([...currentReceiver.defaultCatalogs])
+          ? selectedCatalogs
           : undefined;
 
       const liveSyncValues =
@@ -122,10 +130,31 @@ export default component$<ManifestSettingsProps>(
                     class="grid grid-cols-1 w-full gap-4"
                   >
                     {fieldArray.items.map((item, index) => (
-                      <div key={item}>
+                      <div 
+                        key={item}
+                        class="p-3 rounded-lg border border-outline/20 flex items-center"
+                      >
+                        <div class="flex flex-col mr-2">
+                          <button 
+                            type="button" 
+                            class="text-outline/50 hover:text-primary"
+                            onClick$={() => moveCatalogUp(index)}
+                            disabled={index === 0}
+                          >
+                            ▲
+                          </button>
+                          <button 
+                            type="button" 
+                            class="text-outline/50 hover:text-primary"
+                            onClick$={() => moveCatalogDown(index)}
+                            disabled={index === fieldArray.items.length - 1}
+                          >
+                            ▼
+                          </button>
+                        </div>
                         <Field name={`catalogs.${index}.value`} type="boolean">
                           {(field, props) => (
-                            <div class="flex flex-row gap-2">
+                            <div class="flex flex-row gap-2 flex-1">
                               <div>
                                 <input
                                   type="checkbox"
@@ -135,20 +164,23 @@ export default component$<ManifestSettingsProps>(
                                   {...props}
                                 />
                               </div>
-                              <div class="text-start">
-                                <p class="text-sm pt-0.5">
-                                  {
-                                    currentReceiver.manifestCatalogItems[index]
-                                      .name
-                                  }
-                                </p>
-                                <p class="text-xs">
-                                  {
-                                    currentReceiver.manifestCatalogItems[index]
-                                      .type
-                                  }
-                                </p>
-                              </div>
+                              <Field name={`catalogs.${index}.id`}>
+                                {(idField) => {
+                                  const catalogItem = currentReceiver.manifestCatalogItems.find(
+                                    (catalog) => catalog.id === idField.value
+                                  );
+                                  return (
+                                    <div class="text-start">
+                                      <p class="text-sm pt-0.5">
+                                        {catalogItem?.name}
+                                      </p>
+                                      <p class="text-xs">
+                                        {catalogItem?.type}
+                                      </p>
+                                    </div>
+                                  );
+                                }}
+                              </Field>
                             </div>
                           )}
                         </Field>
